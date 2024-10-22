@@ -5,6 +5,7 @@ import RPi.GPIO as GPIO
 import numpy as np
 from picamera2 import Picamera2
 from multiprocessing import Process, Queue
+from tflite_runtime.interpreter import Interpreter
 
 # Global detection queue
 detection_queue = Queue()
@@ -46,7 +47,7 @@ def calculate_distance(distance_queue):
         distance_queue.put(distance)  # Send the calculated distance to the queue
 
 # Object detection functionality
-def run_object_detection():
+def run_object_detection(frame_queue):
     global detection_queue  # Declare the global queue
 
     MODEL_NAME = 'model'
@@ -75,13 +76,12 @@ def run_object_detection():
     input_mean = 127.5
     input_std = 127.5
 
-    # Initialize video stream
-    videostream = VideoStream(resolution=(imW, imH), framerate=30).start()
     print("Running object detection...")
 
-    try:
-        while True:
-            frame = videostream.read()
+    while True:
+        # Wait for a new frame from the frame queue
+        if not frame_queue.empty():
+            frame = frame_queue.get()
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             frame_resized = cv2.resize(frame_rgb, (width, height))
             input_data = np.expand_dims(frame_resized, axis=0)
@@ -97,15 +97,10 @@ def run_object_detection():
             scores = interpreter.get_tensor(output_details[2]['index'])[0]
 
             for i in range(len(scores)):
-                if (scores[i] > min_conf_threshold):
+                if scores[i] > min_conf_threshold:
                     object_name = labels[int(classes[i])]
                     print(f"Detected: {object_name} with confidence {scores[i]:.2f}")
                     detection_queue.put(object_name)  # Send detected object to the global queue
-
-    except KeyboardInterrupt:
-        print("Stopped by user.")
-    finally:
-        videostream.stop()
 
 # VideoStream class for camera
 class VideoStream:
@@ -127,24 +122,38 @@ class VideoStream:
     def stop(self):
         self.picam2.stop()
 
-
 # Main function to run the vision tool
 def run_vision_tool():
     distance_queue = Queue()
-
-    # Start object detection process
-    detection_process = Process(target=run_object_detection)
-    detection_process.start()
+    frame_queue = Queue()
 
     # Start distance measurement process
     distance_process = Process(target=calculate_distance, args=(distance_queue,))
     distance_process.start()
 
-    while True:
-        if not detection_queue.empty() and not distance_queue.empty():
-            object_name = detection_queue.get()
-            distance = distance_queue.get()
-            announce_detection(object_name, distance)
+    # Initialize video stream
+    videostream = VideoStream(resolution=(640, 480), framerate=30).start()
+
+    # Start object detection process
+    detection_process = Process(target=run_object_detection, args=(frame_queue,))
+    detection_process.start()
+
+    try:
+        while True:
+            frame = videostream.read()
+            frame_queue.put(frame)  # Send the frame to the object detection process
+
+            if not detection_queue.empty() and not distance_queue.empty():
+                object_name = detection_queue.get()
+                distance = distance_queue.get()
+                announce_detection(object_name, distance)
+
+    except KeyboardInterrupt:
+        print("Stopped by user.")
+    finally:
+        videostream.stop()
+        distance_process.join()
+        detection_process.join()
 
 if __name__ == "__main__":
     run_vision_tool()
