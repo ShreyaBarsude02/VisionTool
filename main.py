@@ -8,8 +8,9 @@ from multiprocessing import Process, Queue
 from threading import Thread
 from tflite_runtime.interpreter import Interpreter
 
-# Global detection queue
+# Global queues
 detection_queue = Queue()
+frame_queue = Queue()
 
 # Audio feedback functionality
 def speak(text):
@@ -21,43 +22,19 @@ def announce_detection(object_name, distance):
 # Distance measurement functionality
 def calculate_distance(distance_queue):
     distance = 0
-    # GPIO.setmode(GPIO.BCM)
-    # TRIG = 23
-    # ECHO = 24
-    
-    # GPIO.setup(TRIG, GPIO.OUT)
-    # GPIO.setup(ECHO, GPIO.IN)
-    
     while True:
-        # GPIO.output(TRIG, False)
-        # time.sleep(0.5)
-        
-        # GPIO.output(TRIG, True)
-        # time.sleep(0.00001)
-        # GPIO.output(TRIG, False)
-        
-        # while GPIO.input(ECHO) == 0:
-        #     pulse_start = time.time()
-        
-        # while GPIO.input(ECHO) == 1:
-        #     pulse_end = time.time()
-        
-        # pulse_duration = pulse_end - pulse_start
-        # distance = pulse_duration * 17150
-        # distance = round(distance, 2)
-        distance = distance+1
-
+        distance = distance + 1  # Simulate distance increase for now
         distance_queue.put(distance)  # Send the calculated distance to the queue
+        time.sleep(1)  # Simulate delay for testing
 
 # Object detection functionality
-def run_object_detection(videostream):
+def run_object_detection(frame_queue):
     global detection_queue  # Declare the global queue
 
     MODEL_NAME = 'model'
     GRAPH_NAME = 'detect.tflite'
     LABELMAP_NAME = 'labelmap.txt'
     min_conf_threshold = 0.5  # Confidence threshold
-    imW, imH = 640, 480
 
     # Load model and labels
     PATH_TO_CKPT = os.path.join(MODEL_NAME, GRAPH_NAME)
@@ -82,26 +59,27 @@ def run_object_detection(videostream):
     print("Running object detection...")
 
     while True:
-        frame = videostream.read()
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        frame_resized = cv2.resize(frame_rgb, (width, height))
-        input_data = np.expand_dims(frame_resized, axis=0)
+        if not frame_queue.empty():
+            frame = frame_queue.get()
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_resized = cv2.resize(frame_rgb, (width, height))
+            input_data = np.expand_dims(frame_resized, axis=0)
 
-        if floating_model:
-            input_data = (np.float32(input_data) - input_mean) / input_std
+            if floating_model:
+                input_data = (np.float32(input_data) - input_mean) / input_std
 
-        interpreter.set_tensor(input_details[0]['index'], input_data)
-        interpreter.invoke()
+            interpreter.set_tensor(input_details[0]['index'], input_data)
+            interpreter.invoke()
 
-        boxes = interpreter.get_tensor(output_details[0]['index'])[0]
-        classes = interpreter.get_tensor(output_details[1]['index'])[0]
-        scores = interpreter.get_tensor(output_details[2]['index'])[0]
+            boxes = interpreter.get_tensor(output_details[0]['index'])[0]
+            classes = interpreter.get_tensor(output_details[1]['index'])[0]
+            scores = interpreter.get_tensor(output_details[2]['index'])[0]
 
-        for i in range(len(scores)):
-            if scores[i] > min_conf_threshold:
-                object_name = labels[int(classes[i])]
-                print(f"Detected: {object_name} with confidence {scores[i]:.2f}")
-                detection_queue.put(object_name)  # Send detected object to the global queue
+            for i in range(len(scores)):
+                if scores[i] > min_conf_threshold:
+                    object_name = labels[int(classes[i])]
+                    print(f"Detected: {object_name} with confidence {scores[i]:.2f}")
+                    detection_queue.put(object_name)  # Send detected object to the global queue
 
 # VideoStream class for camera
 class VideoStream:
@@ -135,11 +113,19 @@ def run_vision_tool():
     videostream = VideoStream(resolution=(640, 480), framerate=30).start()
 
     # Start object detection thread
-    detection_thread = Thread(target=run_object_detection, args=(videostream,))
+    detection_thread = Thread(target=run_object_detection, args=(frame_queue,))
     detection_thread.start()
 
     try:
         while True:
+            # Read frame from the camera
+            frame = videostream.read()
+            
+            # Put the frame into the frame_queue for object detection
+            if not frame_queue.full():
+                frame_queue.put(frame)
+
+            # Process detection and distance data
             if not detection_queue.empty() and not distance_queue.empty():
                 object_name = detection_queue.get()
                 distance = distance_queue.get()
