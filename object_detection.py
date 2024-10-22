@@ -3,8 +3,9 @@ from picamera2 import Picamera2
 from tflite_runtime.interpreter import Interpreter
 import numpy as np
 import os
+from queue import Queue  # Make sure to import Queue
 
-def run_object_detection():
+def run_object_detection(detection_queue):
     MODEL_NAME = 'model'
     GRAPH_NAME = 'detect.tflite'
     LABELMAP_NAME = 'labelmap.txt'
@@ -54,7 +55,7 @@ def run_object_detection():
             for i in range(len(scores)):
                 if (scores[i] > min_conf_threshold):
                     object_name = labels[int(classes[i])]
-                    print(f"Detected: {object_name} with confidence {scores[i]:.2f}")
+                    detection_queue.put(object_name)  # Send detected object to the queue
     
     except KeyboardInterrupt:
         print("Stopped by user.")
