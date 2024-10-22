@@ -1,0 +1,9 @@
+gpio:
+  trig_pin: 23
+  echo_pin: 24
+camera:
+  resolution_width: 640
+  resolution_height: 480
+audio:
+  voice: male
+  volume: 1.0
