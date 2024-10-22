@@ -33,4 +33,4 @@ def calculate_distance(distance_queue):
         
         distance_queue.put(distance)  # Send the calculated distance to the queue
 
-    GPIO.cleanup()
+    # GPIO.cleanup()

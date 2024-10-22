@@ -20,3 +20,4 @@ def run_vision_tool():
 
 if __name__ == "__main__":
     run_vision_tool()
+
