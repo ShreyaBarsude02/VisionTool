@@ -111,8 +111,12 @@ def run_object_detection():
 class VideoStream:
     def __init__(self, resolution=(640, 480), framerate=30):
         self.picam2 = Picamera2()
-        self.picam2.configure(self.picam2.create_preview_configuration(main={"size": resolution, "format": "RGB888"}))
-        self.picam2.start()
+        try:
+            self.picam2.configure(self.picam2.create_preview_configuration(main={"size": resolution, "format": "RGB888"}))
+            self.picam2.start()
+        except RuntimeError as e:
+            print(f"Camera initialization failed: {e}")
+            raise
     
     def start(self):
         return self
@@ -122,6 +126,7 @@ class VideoStream:
 
     def stop(self):
         self.picam2.stop()
+
 
 # Main function to run the vision tool
 def run_vision_tool():
