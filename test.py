@@ -2,14 +2,15 @@ import multiprocessing
 import os
 import time
 from picamera2 import Picamera2
+from threading import Thread
+from queue import Queue 
 import cv2
 import numpy as np
 from tflite_runtime.interpreter import Interpreter
-import pyttsx3  # For text-to-speech
 
-def object_detection(detection_queue):
+def object_detection():
     os.sched_setaffinity(0, {0})
-    print("Object detection process running on core 0")
+    print("object detection process running on core 0")
 
     picam2 = Picamera2()
     picam2.configure(picam2.create_preview_configuration(main={"size": (640, 480), "format": "RGB888"}))
@@ -62,7 +63,6 @@ def object_detection(detection_queue):
                 if (scores[i] > min_conf_threshold):
                     object_name = labels[int(classes[i])]
                     print(f"Detected: {object_name} with confidence {scores[i]:.2f}")
-                    detection_queue.put(object_name)
 
             time.sleep(1) 
     except KeyboardInterrupt:
@@ -70,41 +70,9 @@ def object_detection(detection_queue):
         picam2.stop()
         print("Camera process stopped.")
 
-
-def audio_output(detection_queue):
-    os.sched_setaffinity(0, {1})  # Run on core 1
-    print("Audio output process running on core 1")
-    
-    # Initialize the text-to-speech engine
-    engine = pyttsx3.init()
-    engine.setProperty('rate', 150)  # Speed of speech
-    engine.setProperty('volume', 1.0)  # Volume level
-
-    try:
-        while True:
-            if not detection_queue.empty():
-                detected_object = detection_queue.get()
-                print(f"Audio Output: {detected_object}")
-                
-                # Use text-to-speech to say the detected object
-                engine.say(f"Detected {detected_object}")
-                engine.runAndWait()  # Blocks while speaking
-            time.sleep(1)
-    except KeyboardInterrupt:
-        print("Audio output process stopped.")
-
-
 if __name__ == "__main__":
-    detection_queue = multiprocessing.Queue()
     
-    # Create processes for object detection and audio output
-    detection = multiprocessing.Process(target=object_detection, args=(detection_queue,))
-    audio = multiprocessing.Process(target=audio_output, args=(detection_queue,))
-
-    # Start both processes
+    detection = multiprocessing.Process(target=object_detection)
     detection.start()
-    audio.start()
 
-    # Wait for both processes to finish
     detection.join()
-    audio.join()
