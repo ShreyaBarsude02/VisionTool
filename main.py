@@ -1,4 +1,7 @@
 from multiprocessing import Process, Queue
+from object_detection import run_object_detection
+from distance_measurement import calculate_distance
+from audio_feedback import announce_detection
 
 def run_vision_tool():
     detection_queue = Queue()
@@ -20,4 +23,3 @@ def run_vision_tool():
 
 if __name__ == "__main__":
     run_vision_tool()
-
