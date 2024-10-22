@@ -8,7 +8,7 @@ def run_object_detection():
     MODEL_NAME = 'model'
     GRAPH_NAME = 'detect.tflite'
     LABELMAP_NAME = 'labelmap.txt'
-    min_conf_threshold = 0.5
+    min_conf_threshold = 0.8  # Set minimum confidence to 80%
     imW, imH = 640, 480
     
     PATH_TO_CKPT = os.path.join(MODEL_NAME, GRAPH_NAME)
@@ -37,7 +37,7 @@ def run_object_detection():
     videostream = VideoStream(resolution=(imW, imH), framerate=30).start()
 
     print("Running object detection, press Ctrl+C to stop...")
-    
+
     try:
         while True:
             frame = videostream.read()
@@ -56,17 +56,42 @@ def run_object_detection():
             classes = interpreter.get_tensor(output_details[1]['index'])[0]  # Detected class indexes
             scores = interpreter.get_tensor(output_details[2]['index'])[0]  # Confidence scores
             
-            # Print detected objects
+            # Draw boxes and labels for confidence > 80%
             for i in range(len(scores)):
                 if ((scores[i] > min_conf_threshold) and (scores[i] <= 1.0)):
                     object_name = labels[int(classes[i])]  # Lookup object name from label file
+                    confidence = int(scores[i] * 100)
                     print(f"Detected: {object_name} with confidence: {scores[i]:.2f}")
+
+                    # Get bounding box coordinates
+                    ymin = int(max(1, (boxes[i][0] * imH)))
+                    xmin = int(max(1, (boxes[i][1] * imW)))
+                    ymax = int(min(imH, (boxes[i][2] * imH)))
+                    xmax = int(min(imW, (boxes[i][3] * imW)))
+
+                    # Draw the bounding box
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (10, 255, 0), 2)
+
+                    # Draw label and confidence score
+                    label = f'{object_name}: {confidence}%'
+                    labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+                    label_ymin = max(ymin, labelSize[1] + 10)
+                    cv2.rectangle(frame, (xmin, label_ymin - labelSize[1] - 10), (xmin + labelSize[0], label_ymin + baseLine - 10), (255, 255, 255), cv2.FILLED)
+                    cv2.putText(frame, label, (xmin, label_ymin - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 2)
+
+            # Show the frame with detection
+            cv2.imshow('Object Detector', frame)
+
+            # Press 'q' to quit
+            if cv2.waitKey(1) == ord('q'):
+                break
     
     except KeyboardInterrupt:
         print("Stopped by user.")
     
     finally:
         # Clean up
+        cv2.destroyAllWindows()
         videostream.stop()
 
 # Helper class for video stream
