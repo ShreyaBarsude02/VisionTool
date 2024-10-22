@@ -3,8 +3,12 @@ import os
 import time
 from picamera2 import Picamera2
 from threading import Thread
+from queue import Queue 
+import cv2
+import numpy as np
+from tflite_runtime.interpreter import Interpreter
 
-def object_detection():
+def object_detection(detection_queue):
     os.sched_setaffinity(0, {0})
     print("object detection process running on core 0")
 
@@ -63,13 +67,33 @@ def object_detection():
 
             time.sleep(1) 
     except KeyboardInterrupt:
-        nonlocal stopped
         stopped = True
         picam2.stop()
         print("Camera process stopped.")
 
+
+def audio_output(detection_queue):
+    os.sched_setaffinity(0, {1})  # Run on core 1
+    print("Audio output process running on core 1")
+    
+    try:
+        while True:
+            if not detection_queue.empty():
+                detected_object = detection_queue.get()
+                print(f"Audio Output: {detected_object}")
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("Audio output process stopped.")
+
+
+
 if __name__ == "__main__":
-    detection = multiprocessing.Process(target=object_detection)
+    detection_queue = multiprocessing.Queue()
+    detection = multiprocessing.Process(target=object_detection, args=(detection_queue,))
+    audio = multiprocessing.Process(target=audio_output, args=(detection_queue,))
+
     detection.start()
+    audio.start()
 
     detection.join()
+    audio.join()
