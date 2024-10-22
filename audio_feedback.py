@@ -1,13 +1,10 @@
-import pyttsx3
+import os
 
-def audio_feedback(detection_queue, distance_queue):
-    engine = pyttsx3.init()
-    engine.setProperty('rate', 150)
-    
-    while True:
-        if not detection_queue.empty() and not distance_queue.empty():
-            detected_object = detection_queue.get()
-            distance = distance_queue.get()
-            message = f"The closest object is a {detected_object} at a distance of {distance} centimeters."
-            engine.say(message)
-            engine.runAndWait()
+def speak(text):
+    os.system(f'espeak "{text}" --stdout | aplay')
+
+def announce_detection(object_name, distance):
+    speak(f"Detected {object_name} at a distance of {distance} centimeters")
+
+if __name__ == "__main__":
+    announce_detection("person", 50)
