@@ -77,10 +77,14 @@ def object_detection(detection_queue):
         stopped = True
         picam2.stop()
         print("Camera process stopped.")
+    finally:
+        picam2.stop()
+        picam2.close()
 
 def audio_feedback(detection_queue):
     os.sched_setaffinity(0, {1})  # Assigning this process to core 1
     engine = pyttsx3.init()
+    engine.setProperty('rate', 150)
 
     while True:
         if not detection_queue.empty():
@@ -89,15 +93,22 @@ def audio_feedback(detection_queue):
             print(f"Audio feedback: {message}")  # For debugging
             engine.say(message)
             engine.runAndWait()
+        else:
+            break
+            
+    engine.stop()
 
 if __name__ == "__main__":
     detection_queue = multiprocessing.Queue()
 
     detection = multiprocessing.Process(target=object_detection, args=(detection_queue,))
-    audio = multiprocessing.Process(target=audio_feedback, args=(detection_queue,))
+    
     
     detection.start()
+    time.sleep(2)
+    audio = multiprocessing.Process(target=audio_feedback, args=(detection_queue,))
     audio.start()
 
     detection.join()
     audio.join()
+
