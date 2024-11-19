@@ -11,6 +11,9 @@ import RPi.GPIO as GPIO
 TRIG_PIN = 11
 ECHO_PIN = 18
 
+maxdist = 335
+mindist = 2.5
+
 def object_detection(shared_data):
     os.sched_setaffinity(0, {0})
     print("Object detection process running on core 0")
@@ -108,14 +111,15 @@ def ultrasonic_sensor(shared_data):
     GPIO.setup(TRIG_PIN, GPIO.OUT)
     GPIO.setup(ECHO_PIN, GPIO.IN)
 
-    # Kalman filter initialization
-    estimate = 0.0
-    error_estimate = 1.0
-    error_measure = 2.0  # Measurement noise
-    kalman_gain = 0.0
+    R = 40
+    H = 1.00
+    Q = 10
+    P = 0.1
+    K = 0
 
     try:
-        while True:
+        filtered_distance = 0
+        while True: 
             GPIO.output(TRIG_PIN, GPIO.HIGH)
             time.sleep(0.00001)
             GPIO.output(TRIG_PIN, GPIO.LOW)
@@ -130,10 +134,9 @@ def ultrasonic_sensor(shared_data):
             raw_distance = pulse_duration * 17150
             raw_distance = round(raw_distance, 2)
 
-            # Kalman filter logic
-            kalman_gain = error_estimate / (error_estimate + error_measure)
-            estimate = estimate + kalman_gain * (raw_distance - estimate)
-            error_estimate = (1 - kalman_gain) * error_estimate
+            K = P*H/(H*P*H+R)
+            filtered_distance = filtered_distance + K * (raw_distance - H * filtered_distance)
+            P = (1-K*H)*P+Q
 
             filtered_distance = round(estimate, 2)
             print(f"Ultrasonic sensor: Raw Distance = {raw_distance} cm, Filtered Distance = {filtered_distance} cm")
