@@ -108,6 +108,12 @@ def ultrasonic_sensor(shared_data):
     GPIO.setup(TRIG_PIN, GPIO.OUT)
     GPIO.setup(ECHO_PIN, GPIO.IN)
 
+    # Kalman filter initialization
+    estimate = 0.0
+    error_estimate = 1.0
+    error_measure = 2.0  # Measurement noise
+    kalman_gain = 0.0
+
     try:
         while True:
             GPIO.output(TRIG_PIN, GPIO.HIGH)
@@ -121,10 +127,18 @@ def ultrasonic_sensor(shared_data):
                 pulse_end = time.time()
             
             pulse_duration = pulse_end - pulse_start
-            distance = pulse_duration * 17150 
-            distance = round(distance, 2)
-            print(f"Ultrasonic sensor: Distance = {distance} cm")
-            shared_data["distance"] = distance
+            raw_distance = pulse_duration * 17150
+            raw_distance = round(raw_distance, 2)
+
+            # Kalman filter logic
+            kalman_gain = error_estimate / (error_estimate + error_measure)
+            estimate = estimate + kalman_gain * (raw_distance - estimate)
+            error_estimate = (1 - kalman_gain) * error_estimate
+
+            filtered_distance = round(estimate, 2)
+            print(f"Ultrasonic sensor: Raw Distance = {raw_distance} cm, Filtered Distance = {filtered_distance} cm")
+            
+            shared_data["distance"] = filtered_distance
             time.sleep(1)
     except KeyboardInterrupt:
         print("Stopping ultrasonic sensor")
