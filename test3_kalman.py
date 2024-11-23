@@ -148,7 +148,7 @@ def ultrasonic_sensor(shared_data):
     finally:
         GPIO.cleanup()
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     manager = multiprocessing.Manager()
     shared_data = manager.dict()
     shared_data["object_name"] = None
